@@ -74,7 +74,7 @@ contract DisperseTest is Test {
         amounts[0] = 0;
         amounts[1] = 0;
 
-        disperse.disperseNFT(address(1), tokens, tokenIds, amounts, "");
+        disperse.disperseNFT(address(1), tokens, tokenIds, amounts);
 
         assertEq(nft_1.ownerOf(1), address(1));
         assertEq(nft_1.ownerOf(2), address(1));
@@ -93,7 +93,7 @@ contract DisperseTest is Test {
         amounts[0] = 5;
         amounts[1] = 5;
 
-        disperse.disperseNFT(address(1), tokens, tokenIds, amounts, "");
+        disperse.disperseNFT(address(1), tokens, tokenIds, amounts);
 
         assertEq(nft1155_1.balanceOf(address(1), 1), 5);
         assertEq(nft1155_1.balanceOf(address(1), 2), 5);
@@ -171,6 +171,27 @@ contract DisperseTest is Test {
         assertEq(token.balanceOf(users[2]), 3 ether);
         assertEq(token.balanceOf(users[3]), 3 ether);
         assertEq(token.balanceOf(users[4]), 3 ether);
+    }
+
+    function testWithdraw() public {
+        vm.deal(address(this), 100 ether);
+
+        token.transfer(address(disperse), 100 ether);
+
+        disperse.withdraw(IERC20(address(token)), address(1));
+
+        assertEq(token.balanceOf(address(disperse)), 0 ether);
+        assertEq(token.balanceOf(address(1)), 100 ether);
+    }
+
+    function testWithdrawNFT() public {
+        nft_1.mint(address(disperse), 100);
+
+        assertEq(nft_1.ownerOf(100), address(disperse));
+
+        disperse.withdrawNFT(address(1), IERC721_IERC1155(address(nft_1)), 100, 0);
+
+        assertEq(nft_1.ownerOf(100), address(1));
     }
 
     function onERC1155Received(address, address, uint256, uint256, bytes memory) public virtual returns (bytes4) {
