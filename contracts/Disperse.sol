@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-interface IERC20 {
-    function transfer(address to, uint256 value) external returns (bool);
-
-    function transferFrom(address from, address to, uint256 value) external returns (bool);
-}
+import "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface IERC721_IERC1155 {
     function safeTransferFrom(address from, address to, uint256 tokenId) external;
@@ -15,7 +11,7 @@ interface IERC721_IERC1155 {
 }
 
 contract Disperse {
-    using SafeERC20 for ERC20;
+    using SafeERC20 for IERC20;
 
     function disperseNFT(
         address recipient,
@@ -50,15 +46,15 @@ contract Disperse {
         for (uint256 i = 0; i < recipients.length; i++) {
             total += values[i];
         }
-        require(token.transferFrom(msg.sender, address(this), total));
+        token.safeTransferFrom(msg.sender, address(this), total);
         for (uint256 i = 0; i < recipients.length; i++) {
-            require(token.transfer(recipients[i], values[i]));
+            token.safeTransfer(recipients[i], values[i]);
         }
     }
 
     function disperseTokenSimple(IERC20 token, address[] memory recipients, uint256[] memory values) external {
         for (uint256 i = 0; i < recipients.length; i++) {
-            require(token.transferFrom(msg.sender, recipients[i], values[i]));
+            token.safeTransferFrom(msg.sender, recipients[i], values[i]);
         }
     }
 

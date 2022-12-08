@@ -136,9 +136,13 @@ contract DisperseTest is Test {
     }
 
     function testDisperseTokenSimple() public {
-     
-
-        disperse.disperseTokenSimple(IERC20(address(token)), users, 1);
+        uint256[] memory values = new uint256[](5);
+        values[0] = 1 ether;
+        values[1] = 2 ether;
+        values[2] = 3 ether;
+        values[3] = 4 ether;
+        values[4] = 5 ether;
+        disperse.disperseTokenSimple(IERC20(address(token)), users, values);
 
         assertEq(token.balanceOf(users[0]), 1 ether);
         assertEq(token.balanceOf(users[1]), 2 ether);
@@ -147,17 +151,27 @@ contract DisperseTest is Test {
         assertEq(token.balanceOf(users[4]), 5 ether);
     }
 
-    function disperseTokenSimple(IERC20 token, address[] memory recipients, uint256[] memory values) external {}
+    function testDisperseEtherSameValue() public {
+        vm.deal(address(this), 100 ether);
 
-    // function testDisperseEtherSameValue() public {
-    //     // TODO
-    // }
-    // function disperseEtherSameValue(address[] memory recipients, uint256 value) external payable {}
+        disperse.disperseEtherSameValue{value: 15 ether}(users, 3 ether);
 
-    // function testDisperseTokenSameValue() public {
-    //     // TODO
-    // }
-    // function disperseTokenSameValue(IERC20 token, address[] memory recipients, uint256 value) external {}
+        assertEq(users[0].balance, 103 ether); // default balance is 100
+        assertEq(users[1].balance, 103 ether);
+        assertEq(users[2].balance, 103 ether);
+        assertEq(users[3].balance, 103 ether);
+        assertEq(users[4].balance, 103 ether);
+    }
+
+    function testDisperseTokenSameValue() public {
+        disperse.disperseTokenSameValue(IERC20(address(token)), users, 3 ether);
+
+        assertEq(token.balanceOf(users[0]), 3 ether);
+        assertEq(token.balanceOf(users[1]), 3 ether);
+        assertEq(token.balanceOf(users[2]), 3 ether);
+        assertEq(token.balanceOf(users[3]), 3 ether);
+        assertEq(token.balanceOf(users[4]), 3 ether);
+    }
 
     function onERC1155Received(address, address, uint256, uint256, bytes memory) public virtual returns (bytes4) {
         return this.onERC1155Received.selector;
@@ -169,9 +183,5 @@ contract DisperseTest is Test {
         returns (bytes4)
     {
         return this.onERC1155BatchReceived.selector;
-    }
-
-    function onERC721Received(address, address, uint256, bytes memory) public virtual returns (bytes4) {
-        return this.onERC721Received.selector;
     }
 }
