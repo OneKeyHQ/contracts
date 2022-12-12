@@ -1,0 +1,29 @@
+name: deploy-to-eth-mainnet
+
+env:
+  PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+  ALCHEMY_EVM_MAINNET_API_KEY: ${{ secrets.ALCHEMY_EVM_MAINNET_API_KEY }}
+  ETHER_SCAN_MAINNET_KEY: ${{ secrets.ETHER_SCAN_MAINNET_KEY }}
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: deploy-to-eth-mainnet
+    runs-on: ubuntu-latest
+    environment: deploy
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive forge-std solmate openzeppelin-contracts
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+      - name: Run install
+        run: forge install
+
+      - name: Deploy to eth mainnet
+        run: forge script script/Disperse.s.sol:DisperseScript --rpc-url eth --broadcast --verify --etherscan-api-key eth
