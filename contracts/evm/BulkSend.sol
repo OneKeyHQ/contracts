@@ -183,4 +183,10 @@ contract BulkSend is Ownable, ReentrancyGuard {
         (bool success,) = to.call{value: address(this).balance}("");
         if (!success) revert TransferFailed();
     }
+
+    function withdrawStuckToken(address token, address to) external onlyOwner {
+        if (token == address(0)) revert ZeroAddress();
+        if (to == address(0)) revert ZeroAddress();
+        IERC20(token).safeTransfer(to, IERC20(token).balanceOf(address(this)));
+    }
 }
