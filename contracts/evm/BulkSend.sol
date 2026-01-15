@@ -9,6 +9,7 @@ import {IERC1155} from "openzeppelin-contracts/contracts/token/ERC1155/IERC1155.
 
 contract BulkSend is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
+
     struct TokenTransfer {
         address recipient;
         uint256 amount;
@@ -42,25 +43,29 @@ contract BulkSend is Ownable, ReentrancyGuard {
         if (len == 0) revert EmptyArray();
 
         uint256 total;
-        for (uint256 i; i < len; ) {
+        for (uint256 i; i < len;) {
             if (transfers[i].recipient == address(0)) revert ZeroAddress();
             if (transfers[i].amount == 0) revert ZeroAmount();
             total += transfers[i].amount;
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         if (msg.value < total) revert InsufficientValue();
 
-        for (uint256 i; i < len; ) {
-            (bool success, ) = transfers[i].recipient.call{value: transfers[i].amount}("");
+        for (uint256 i; i < len;) {
+            (bool success,) = transfers[i].recipient.call{value: transfers[i].amount}("");
             if (!success) revert TransferFailed();
             emit NativeSent(msg.sender, transfers[i].recipient, transfers[i].amount);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         uint256 remaining = msg.value - total;
         if (remaining > 0) {
-            (bool success, ) = msg.sender.call{value: remaining}("");
+            (bool success,) = msg.sender.call{value: remaining}("");
             if (!success) revert RefundFailed();
         }
     }
@@ -73,17 +78,19 @@ contract BulkSend is Ownable, ReentrancyGuard {
         uint256 total = len * amount;
         if (msg.value < total) revert InsufficientValue();
 
-        for (uint256 i; i < len; ) {
+        for (uint256 i; i < len;) {
             if (recipients[i] == address(0)) revert ZeroAddress();
-            (bool success, ) = recipients[i].call{value: amount}("");
+            (bool success,) = recipients[i].call{value: amount}("");
             if (!success) revert TransferFailed();
             emit NativeSent(msg.sender, recipients[i], amount);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         uint256 remaining = msg.value - total;
         if (remaining > 0) {
-            (bool success, ) = msg.sender.call{value: remaining}("");
+            (bool success,) = msg.sender.call{value: remaining}("");
             if (!success) revert RefundFailed();
         }
     }
@@ -93,12 +100,14 @@ contract BulkSend is Ownable, ReentrancyGuard {
         uint256 len = transfers.length;
         if (len == 0) revert EmptyArray();
 
-        for (uint256 i; i < len; ) {
+        for (uint256 i; i < len;) {
             if (transfers[i].recipient == address(0)) revert ZeroAddress();
             if (transfers[i].amount == 0) revert ZeroAmount();
             IERC20(token).safeTransferFrom(msg.sender, transfers[i].recipient, transfers[i].amount);
             emit TokenSent(token, msg.sender, transfers[i].recipient, transfers[i].amount);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -108,11 +117,13 @@ contract BulkSend is Ownable, ReentrancyGuard {
         if (len == 0) revert EmptyArray();
         if (amount == 0) revert ZeroAmount();
 
-        for (uint256 i; i < len; ) {
+        for (uint256 i; i < len;) {
             if (recipients[i] == address(0)) revert ZeroAddress();
             IERC20(token).safeTransferFrom(msg.sender, recipients[i], amount);
             emit TokenSent(token, msg.sender, recipients[i], amount);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -121,11 +132,13 @@ contract BulkSend is Ownable, ReentrancyGuard {
         uint256 len = transfers.length;
         if (len == 0) revert EmptyArray();
 
-        for (uint256 i; i < len; ) {
+        for (uint256 i; i < len;) {
             if (transfers[i].recipient == address(0)) revert ZeroAddress();
             IERC721(token).transferFrom(msg.sender, transfers[i].recipient, transfers[i].tokenId);
             emit ERC721Sent(token, msg.sender, transfers[i].recipient, transfers[i].tokenId);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -134,26 +147,40 @@ contract BulkSend is Ownable, ReentrancyGuard {
         uint256 len = transfers.length;
         if (len == 0) revert EmptyArray();
 
-        for (uint256 i; i < len; ) {
+        for (uint256 i; i < len;) {
             if (transfers[i].recipient == address(0)) revert ZeroAddress();
             if (transfers[i].amount == 0) revert ZeroAmount();
-            IERC1155(token).safeTransferFrom(msg.sender, transfers[i].recipient, transfers[i].tokenId, transfers[i].amount, "");
+            IERC1155(token)
+                .safeTransferFrom(msg.sender, transfers[i].recipient, transfers[i].tokenId, transfers[i].amount, "");
             emit ERC1155Sent(token, msg.sender, transfers[i].recipient, transfers[i].tokenId, transfers[i].amount);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
-    function sendERC1155SameToken(address token, address[] calldata recipients, uint256 tokenId, uint256 amount) external nonReentrant {
+    function sendERC1155SameToken(address token, address[] calldata recipients, uint256 tokenId, uint256 amount)
+        external
+        nonReentrant
+    {
         if (token == address(0)) revert ZeroAddress();
         uint256 len = recipients.length;
         if (len == 0) revert EmptyArray();
         if (amount == 0) revert ZeroAmount();
 
-        for (uint256 i; i < len; ) {
+        for (uint256 i; i < len;) {
             if (recipients[i] == address(0)) revert ZeroAddress();
             IERC1155(token).safeTransferFrom(msg.sender, recipients[i], tokenId, amount, "");
             emit ERC1155Sent(token, msg.sender, recipients[i], tokenId, amount);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
+    }
+
+    function withdrawStuckNative(address to) external onlyOwner {
+        if (to == address(0)) revert ZeroAddress();
+        (bool success,) = to.call{value: address(this).balance}("");
+        if (!success) revert TransferFailed();
     }
 }
