@@ -1,14 +1,12 @@
-node_modules
-.env
-coverage
-coverage.json
-typechain
-typechain-types
-
-#Hardhat files
-cache
-artifacts
-
-#Foundry Files
 out/
+cache/
 broadcast/
+lib/
+node_modules/
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+.DS_Store
+deploy-app/dist/

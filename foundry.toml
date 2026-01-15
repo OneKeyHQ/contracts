@@ -1,29 +1,32 @@
 [profile.default]
-src = 'contracts'
-out = 'out'
-libs = ['lib']
-
-solc = "0.8.17"
-bytecode_hash = "none"
+src = "contracts/evm"
+out = "out"
+libs = ["lib"]
+solc = "0.8.20"
+optimizer = true
 optimizer_runs = 200
 
+[profile.default.fmt]
+line_length = 120
+tab_width = 4
+
 [rpc_endpoints]
-eth = "https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_EVM_MAINNET_API_KEY}"
-goerli = "https://eth-goerli.alchemyapi.io/v2/${ALCHEMY_EVM_GOERLI_API_KEY}"
-polygon = "https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_EVM_POLYGON_API_KEY}"
-arbitrum = "https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_EVM_ARBITRUM_API_KEY}"
-optimism = "https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_EVM_OPTIMISM_API_KEY}"
-bsc = "https://bsc-dataseed.binance.org/"
-avalanche = "https://api.avax.network/ext/bc/C/rpc"
+ethereum = "${ETH_RPC_URL}"
+bsc = "${BSC_RPC_URL}"
+arbitrum = "${ARBITRUM_RPC_URL}"
+polygon = "${POLYGON_RPC_URL}"
+base = "${BASE_RPC_URL}"
+optimism = "${OPTIMISM_RPC_URL}"
+avalanche = "${AVALANCHE_RPC_URL}"
+linea = "${LINEA_RPC_URL}"
+zksync = "${ZKSYNC_RPC_URL}"
 
 [etherscan]
-mainnet = { key = "${ETHER_SCAN_MAINNET_KEY}" }
-goerli = { key = "${ETHER_SCAN_GOERLI_KEY}" }
-polygon = { key = "${POLYGON_SCAN_KEY}" }
-arbitrum = { key = "${ARB_SCAN_KEY}" }
-optimism = { key = "${OP_SCAN_KEY}" }
-bsc = { key = "${BSC_SCAN_KEY}" }
-avalanche = { key = "${SNOW_TRACE_KEY}" }
-
-
-# See more config options https://github.com/foundry-rs/foundry/tree/master/config
+ethereum = { key = "${ETHERSCAN_API_KEY}" }
+bsc = { key = "${BSCSCAN_API_KEY}" }
+arbitrum = { key = "${ARBISCAN_API_KEY}" }
+polygon = { key = "${POLYGONSCAN_API_KEY}" }
+base = { key = "${BASESCAN_API_KEY}" }
+optimism = { key = "${OPSCAN_API_KEY}" }
+avalanche = { key = "${SNOWTRACE_API_KEY}" }
+linea = { key = "${LINEASCAN_API_KEY}" }
