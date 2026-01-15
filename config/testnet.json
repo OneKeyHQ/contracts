@@ -1,0 +1,3 @@
+{
+  "chains": ["sepolia", "bsc_testnet", "arbitrum_sepolia", "polygon_amoy", "base_sepolia"]
+}

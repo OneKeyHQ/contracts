@@ -1,0 +1,65 @@
+{
+  "ethereum": {
+    "chainId": 1,
+    "name": "Ethereum Mainnet",
+    "rpc": "https://eth.llamarpc.com",
+    "explorer": "https://etherscan.io",
+    "nativeCurrency": { "name": "Ether", "symbol": "ETH", "decimals": 18 }
+  },
+  "bsc": {
+    "chainId": 56,
+    "name": "BNB Smart Chain",
+    "rpc": "https://bsc-dataseed.binance.org",
+    "explorer": "https://bscscan.com",
+    "nativeCurrency": { "name": "BNB", "symbol": "BNB", "decimals": 18 }
+  },
+  "arbitrum": {
+    "chainId": 42161,
+    "name": "Arbitrum One",
+    "rpc": "https://arb1.arbitrum.io/rpc",
+    "explorer": "https://arbiscan.io",
+    "nativeCurrency": { "name": "Ether", "symbol": "ETH", "decimals": 18 }
+  },
+  "polygon": {
+    "chainId": 137,
+    "name": "Polygon",
+    "rpc": "https://polygon-rpc.com",
+    "explorer": "https://polygonscan.com",
+    "nativeCurrency": { "name": "MATIC", "symbol": "MATIC", "decimals": 18 }
+  },
+  "base": {
+    "chainId": 8453,
+    "name": "Base",
+    "rpc": "https://mainnet.base.org",
+    "explorer": "https://basescan.org",
+    "nativeCurrency": { "name": "Ether", "symbol": "ETH", "decimals": 18 }
+  },
+  "optimism": {
+    "chainId": 10,
+    "name": "Optimism",
+    "rpc": "https://mainnet.optimism.io",
+    "explorer": "https://optimistic.etherscan.io",
+    "nativeCurrency": { "name": "Ether", "symbol": "ETH", "decimals": 18 }
+  },
+  "avalanche": {
+    "chainId": 43114,
+    "name": "Avalanche C-Chain",
+    "rpc": "https://api.avax.network/ext/bc/C/rpc",
+    "explorer": "https://snowtrace.io",
+    "nativeCurrency": { "name": "AVAX", "symbol": "AVAX", "decimals": 18 }
+  },
+  "linea": {
+    "chainId": 59144,
+    "name": "Linea",
+    "rpc": "https://rpc.linea.build",
+    "explorer": "https://lineascan.build",
+    "nativeCurrency": { "name": "Ether", "symbol": "ETH", "decimals": 18 }
+  },
+  "zksync": {
+    "chainId": 324,
+    "name": "zkSync Era",
+    "rpc": "https://mainnet.era.zksync.io",
+    "explorer": "https://explorer.zksync.io",
+    "nativeCurrency": { "name": "Ether", "symbol": "ETH", "decimals": 18 }
+  }
+}
