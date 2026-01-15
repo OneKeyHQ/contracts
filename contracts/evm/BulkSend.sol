@@ -46,4 +46,27 @@ contract BulkSend is Ownable, ReentrancyGuard {
             if (!success) revert RefundFailed();
         }
     }
+
+    function sendNativeSameAmount(address[] calldata recipients, uint256 amount) external payable nonReentrant {
+        uint256 len = recipients.length;
+        if (len == 0) revert EmptyArray();
+        if (amount == 0) revert ZeroAmount();
+
+        uint256 total = len * amount;
+        if (msg.value < total) revert InsufficientValue();
+
+        for (uint256 i; i < len; ) {
+            if (recipients[i] == address(0)) revert ZeroAddress();
+            (bool success, ) = recipients[i].call{value: amount}("");
+            if (!success) revert TransferFailed();
+            emit NativeSent(msg.sender, recipients[i], amount);
+            unchecked { ++i; }
+        }
+
+        uint256 remaining = msg.value - total;
+        if (remaining > 0) {
+            (bool success, ) = msg.sender.call{value: remaining}("");
+            if (!success) revert RefundFailed();
+        }
+    }
 }
