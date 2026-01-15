@@ -6,8 +6,9 @@ import {ReentrancyGuard} from "openzeppelin-contracts/contracts/security/Reentra
 import {SafeERC20, IERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721} from "openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
 import {IERC1155} from "openzeppelin-contracts/contracts/token/ERC1155/IERC1155.sol";
+import {ERC1155Holder} from "openzeppelin-contracts/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-contract BulkSend is Ownable, ReentrancyGuard {
+contract BulkSend is Ownable, ReentrancyGuard, ERC1155Holder {
     using SafeERC20 for IERC20;
 
     struct TokenTransfer {
@@ -188,5 +189,18 @@ contract BulkSend is Ownable, ReentrancyGuard {
         if (token == address(0)) revert ZeroAddress();
         if (to == address(0)) revert ZeroAddress();
         IERC20(token).safeTransfer(to, IERC20(token).balanceOf(address(this)));
+    }
+
+    function withdrawStuckERC721(address token, address to, uint256 tokenId) external onlyOwner {
+        if (token == address(0)) revert ZeroAddress();
+        if (to == address(0)) revert ZeroAddress();
+        IERC721(token).transferFrom(address(this), to, tokenId);
+    }
+
+    function withdrawStuckERC1155(address token, address to, uint256 tokenId, uint256 amount) external onlyOwner {
+        if (token == address(0)) revert ZeroAddress();
+        if (to == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+        IERC1155(token).safeTransferFrom(address(this), to, tokenId, amount, "");
     }
 }
