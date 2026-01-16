@@ -39,10 +39,19 @@ contracts/
 │   └── mocks/                 # Mock contracts
 ├── script/
 │   └── Deploy.s.sol          # Foundry deploy script
-└── config/
-    ├── chains.json           # Chain configurations
-    ├── testnet.json          # Testnet chain list
-    └── mainnet.json          # Mainnet chain list
+├── config/
+│   ├── chains.json           # Chain configurations
+│   ├── testnet.json          # Testnet chain list
+│   └── mainnet.json          # Mainnet chain list
+├── deploy-app/                # Web deployment interface
+│   ├── src/
+│   │   ├── components/       # React components
+│   │   ├── config/           # Chain and contract config
+│   │   └── hooks/            # Custom hooks (useTron)
+│   └── package.json
+└── docs/
+    ├── plans/                 # Design and implementation plans
+    └── security-report.md     # Security audit report
 ```
 
 ## Contract Functions
@@ -70,6 +79,8 @@ contracts/
 
 ## Deployment
 
+### CLI Deployment (Foundry)
+
 ```bash
 # Deploy to a network
 forge script script/Deploy.s.sol --rpc-url <RPC_URL> --broadcast --verify
@@ -77,6 +88,23 @@ forge script script/Deploy.s.sol --rpc-url <RPC_URL> --broadcast --verify
 # Example: Deploy to Ethereum mainnet
 forge script script/Deploy.s.sol --rpc-url ethereum --broadcast --verify
 ```
+
+### Web Deployment (deploy-app)
+
+```bash
+# Start the deployment web interface
+cd deploy-app
+npm install
+npm run dev
+```
+
+Features:
+- Connect wallet (MetaMask, etc.)
+- Select multiple chains to deploy
+- View balance on each chain
+- Deploy to all selected chains sequentially
+- Export deployment report (JSON)
+- Tron support via TronLink
 
 ## Supported Chains
 
