@@ -19,6 +19,9 @@ contract BulkSend {
     address public owner;
     uint256 private _locked;
 
+    // 500 recipients * ~38k energy per transfer ≈ 19M energy, safely under block limit
+    uint256 public constant MAX_BATCH = 500;
+
     struct TokenTransfer {
         address recipient;
         uint256 amount;
@@ -43,12 +46,17 @@ contract BulkSend {
     error TransferFailed();
     error NotOwner();
     error ReentrancyGuard();
+    error BatchTooLarge();
 
     event TRXSent(address indexed from, address indexed to, uint256 amount);
     event TRC20Sent(address indexed token, address indexed from, address indexed to, uint256 amount);
     event TRC721Sent(address indexed token, address indexed from, address indexed to, uint256 tokenId);
     event TRC1155Sent(address indexed token, address indexed from, address indexed to, uint256 tokenId, uint256 amount);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event StuckTRXWithdrawn(address indexed to, uint256 amount);
+    event StuckTRC20Withdrawn(address indexed token, address indexed to, uint256 amount);
+    event StuckTRC721Withdrawn(address indexed token, address indexed to, uint256 tokenId);
+    event StuckTRC1155Withdrawn(address indexed token, address indexed to, uint256 tokenId, uint256 amount);
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
@@ -76,21 +84,24 @@ contract BulkSend {
     function sendTRX(TokenTransfer[] calldata transfers) external payable nonReentrant {
         uint256 len = transfers.length;
         if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
 
         uint256 total;
         for (uint256 i; i < len;) {
-            if (transfers[i].recipient == address(0)) revert ZeroAddress();
-            if (transfers[i].amount == 0) revert ZeroAmount();
-            total += transfers[i].amount;
+            TokenTransfer calldata t = transfers[i];
+            if (t.recipient == address(0)) revert ZeroAddress();
+            if (t.amount == 0) revert ZeroAmount();
+            total += t.amount;
             unchecked { ++i; }
         }
 
         if (msg.value < total) revert InsufficientValue();
 
         for (uint256 i; i < len;) {
-            (bool success,) = transfers[i].recipient.call{value: transfers[i].amount}("");
+            TokenTransfer calldata t = transfers[i];
+            (bool success,) = t.recipient.call{value: t.amount}("");
             if (!success) revert TransferFailed();
-            emit TRXSent(msg.sender, transfers[i].recipient, transfers[i].amount);
+            emit TRXSent(msg.sender, t.recipient, t.amount);
             unchecked { ++i; }
         }
 
@@ -104,6 +115,7 @@ contract BulkSend {
     function sendTRXSameAmount(address[] calldata recipients, uint256 amount) external payable nonReentrant {
         uint256 len = recipients.length;
         if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
         if (amount == 0) revert ZeroAmount();
 
         uint256 total = len * amount;
@@ -128,13 +140,15 @@ contract BulkSend {
         if (token == address(0)) revert ZeroAddress();
         uint256 len = transfers.length;
         if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
 
         for (uint256 i; i < len;) {
-            if (transfers[i].recipient == address(0)) revert ZeroAddress();
-            if (transfers[i].amount == 0) revert ZeroAmount();
-            bool success = ITRC20(token).transferFrom(msg.sender, transfers[i].recipient, transfers[i].amount);
+            TokenTransfer calldata t = transfers[i];
+            if (t.recipient == address(0)) revert ZeroAddress();
+            if (t.amount == 0) revert ZeroAmount();
+            bool success = ITRC20(token).transferFrom(msg.sender, t.recipient, t.amount);
             if (!success) revert TransferFailed();
-            emit TRC20Sent(token, msg.sender, transfers[i].recipient, transfers[i].amount);
+            emit TRC20Sent(token, msg.sender, t.recipient, t.amount);
             unchecked { ++i; }
         }
     }
@@ -143,6 +157,7 @@ contract BulkSend {
         if (token == address(0)) revert ZeroAddress();
         uint256 len = recipients.length;
         if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
         if (amount == 0) revert ZeroAmount();
 
         for (uint256 i; i < len;) {
@@ -158,11 +173,13 @@ contract BulkSend {
         if (token == address(0)) revert ZeroAddress();
         uint256 len = transfers.length;
         if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
 
         for (uint256 i; i < len;) {
-            if (transfers[i].recipient == address(0)) revert ZeroAddress();
-            ITRC721(token).transferFrom(msg.sender, transfers[i].recipient, transfers[i].tokenId);
-            emit TRC721Sent(token, msg.sender, transfers[i].recipient, transfers[i].tokenId);
+            TRC721Transfer calldata t = transfers[i];
+            if (t.recipient == address(0)) revert ZeroAddress();
+            ITRC721(token).transferFrom(msg.sender, t.recipient, t.tokenId);
+            emit TRC721Sent(token, msg.sender, t.recipient, t.tokenId);
             unchecked { ++i; }
         }
     }
@@ -171,12 +188,14 @@ contract BulkSend {
         if (token == address(0)) revert ZeroAddress();
         uint256 len = transfers.length;
         if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
 
         for (uint256 i; i < len;) {
-            if (transfers[i].recipient == address(0)) revert ZeroAddress();
-            if (transfers[i].amount == 0) revert ZeroAmount();
-            ITRC1155(token).safeTransferFrom(msg.sender, transfers[i].recipient, transfers[i].tokenId, transfers[i].amount, "");
-            emit TRC1155Sent(token, msg.sender, transfers[i].recipient, transfers[i].tokenId, transfers[i].amount);
+            TRC1155Transfer calldata t = transfers[i];
+            if (t.recipient == address(0)) revert ZeroAddress();
+            if (t.amount == 0) revert ZeroAmount();
+            ITRC1155(token).safeTransferFrom(msg.sender, t.recipient, t.tokenId, t.amount, "");
+            emit TRC1155Sent(token, msg.sender, t.recipient, t.tokenId, t.amount);
             unchecked { ++i; }
         }
     }
@@ -185,6 +204,7 @@ contract BulkSend {
         if (token == address(0)) revert ZeroAddress();
         uint256 len = recipients.length;
         if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
         if (amount == 0) revert ZeroAmount();
 
         for (uint256 i; i < len;) {
@@ -195,24 +215,79 @@ contract BulkSend {
         }
     }
 
+    // Gas-optimized TRC20 batch send: transfers tokens to contract first, then distributes
+    // Note: Does NOT support fee-on-transfer tokens
+    function sendTRC20ViaContract(address token, TokenTransfer[] calldata transfers) external nonReentrant {
+        if (token == address(0)) revert ZeroAddress();
+        uint256 len = transfers.length;
+        if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
+
+        uint256 total;
+        for (uint256 i; i < len;) {
+            TokenTransfer calldata t = transfers[i];
+            if (t.recipient == address(0)) revert ZeroAddress();
+            if (t.amount == 0) revert ZeroAmount();
+            total += t.amount;
+            unchecked { ++i; }
+        }
+
+        bool success = ITRC20(token).transferFrom(msg.sender, address(this), total);
+        if (!success) revert TransferFailed();
+
+        for (uint256 i; i < len;) {
+            TokenTransfer calldata t = transfers[i];
+            success = ITRC20(token).transfer(t.recipient, t.amount);
+            if (!success) revert TransferFailed();
+            emit TRC20Sent(token, msg.sender, t.recipient, t.amount);
+            unchecked { ++i; }
+        }
+    }
+
+    // Gas-optimized TRC20 batch send with same amount
+    // Note: Does NOT support fee-on-transfer tokens
+    function sendTRC20SameAmountViaContract(address token, address[] calldata recipients, uint256 amount) external nonReentrant {
+        if (token == address(0)) revert ZeroAddress();
+        uint256 len = recipients.length;
+        if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
+        if (amount == 0) revert ZeroAmount();
+
+        uint256 total = len * amount;
+        bool success = ITRC20(token).transferFrom(msg.sender, address(this), total);
+        if (!success) revert TransferFailed();
+
+        for (uint256 i; i < len;) {
+            if (recipients[i] == address(0)) revert ZeroAddress();
+            success = ITRC20(token).transfer(recipients[i], amount);
+            if (!success) revert TransferFailed();
+            emit TRC20Sent(token, msg.sender, recipients[i], amount);
+            unchecked { ++i; }
+        }
+    }
+
     function withdrawStuckTRX(address to) external onlyOwner {
         if (to == address(0)) revert ZeroAddress();
-        (bool success,) = to.call{value: address(this).balance}("");
+        uint256 amount = address(this).balance;
+        (bool success,) = to.call{value: amount}("");
         if (!success) revert TransferFailed();
+        emit StuckTRXWithdrawn(to, amount);
     }
 
     function withdrawStuckTRC20(address token, address to) external onlyOwner {
         if (token == address(0)) revert ZeroAddress();
         if (to == address(0)) revert ZeroAddress();
-        uint256 balance = ITRC20(token).balanceOf(address(this));
-        bool success = ITRC20(token).transfer(to, balance);
+        uint256 amount = ITRC20(token).balanceOf(address(this));
+        bool success = ITRC20(token).transfer(to, amount);
         if (!success) revert TransferFailed();
+        emit StuckTRC20Withdrawn(token, to, amount);
     }
 
     function withdrawStuckTRC721(address token, address to, uint256 tokenId) external onlyOwner {
         if (token == address(0)) revert ZeroAddress();
         if (to == address(0)) revert ZeroAddress();
         ITRC721(token).transferFrom(address(this), to, tokenId);
+        emit StuckTRC721Withdrawn(token, to, tokenId);
     }
 
     function withdrawStuckTRC1155(address token, address to, uint256 tokenId, uint256 amount) external onlyOwner {
@@ -220,6 +295,7 @@ contract BulkSend {
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
         ITRC1155(token).safeTransferFrom(address(this), to, tokenId, amount, "");
+        emit StuckTRC1155Withdrawn(token, to, tokenId, amount);
     }
 
     function onERC1155Received(address, address, uint256, uint256, bytes calldata) external pure returns (bytes4) {
@@ -233,4 +309,6 @@ contract BulkSend {
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
         return interfaceId == 0x01ffc9a7 || interfaceId == 0x4e2312e0;
     }
+
+    receive() external payable {}
 }

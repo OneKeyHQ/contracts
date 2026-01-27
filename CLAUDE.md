@@ -61,8 +61,10 @@ contracts/
 - `sendNativeSameAmount(address[] recipients, uint256 amount)` - Send same amount
 
 ### ERC20 Token
-- `sendToken(address token, TokenTransfer[] transfers)` - Send different amounts
-- `sendTokenSameAmount(address token, address[] recipients, uint256 amount)` - Send same amount
+- `sendToken(address token, TokenTransfer[] transfers)` - Send different amounts (direct transferFrom)
+- `sendTokenSameAmount(address token, address[] recipients, uint256 amount)` - Send same amount (direct transferFrom)
+- `sendTokenViaContract(address token, TokenTransfer[] transfers)` - Gas-optimized: collect then distribute
+- `sendTokenSameAmountViaContract(address token, address[] recipients, uint256 amount)` - Gas-optimized: collect then distribute
 
 ### ERC721 NFT
 - `sendERC721(address token, ERC721Transfer[] transfers)` - Send NFTs
@@ -76,6 +78,36 @@ contracts/
 - `withdrawStuckToken(address token, address to)` - Withdraw stuck ERC20
 - `withdrawStuckERC721(address token, address to, uint256 tokenId)` - Withdraw stuck NFT
 - `withdrawStuckERC1155(address token, address to, uint256 tokenId, uint256 amount)` - Withdraw stuck ERC1155
+
+## Important Notes
+
+### Batch Limit
+All batch functions have a maximum limit of **500 recipients** per transaction (`MAX_BATCH = 500`). Exceeding this limit will revert with `BatchTooLarge()`.
+
+### Atomic Transactions
+All batch operations are **atomic** - if any single transfer fails, the entire transaction reverts. This includes:
+- Any recipient reverting (e.g., contract without receive function)
+- Refund to sender failing
+- Insufficient balance or allowance
+
+### Unsupported Token Types
+The following token types are **NOT supported**:
+- **Fee-on-transfer tokens** - Actual received amount differs from transfer amount
+- **Rebasing tokens** (e.g., stETH, AMPL) - Balance changes automatically
+- **Tokens with transfer hooks** that may revert unexpectedly
+
+### ERC20 Transfer Methods
+Two methods are available for ERC20 batch transfers:
+
+1. **Direct method** (`sendToken`, `sendTokenSameAmount`):
+   - Each transfer calls `transferFrom` directly from sender to recipient
+   - Supports fee-on-transfer tokens (each transfer is independent)
+   - Higher gas cost for large batches
+
+2. **Via Contract method** (`sendTokenViaContract`, `sendTokenSameAmountViaContract`):
+   - First collects total amount to contract, then distributes
+   - Lower gas cost for large batches
+   - Does NOT support fee-on-transfer tokens
 
 ## Deployment
 

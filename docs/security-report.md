@@ -1,7 +1,7 @@
 # BulkSend 合约安全报告
 
-> 审计日期: 2026-01-16
-> 合约版本: 1.0.0
+> 审计日期: 2026-01-19 (更新)
+> 合约版本: 1.1.0
 > Solidity 版本: 0.8.20
 > 审计范围: contracts/evm/BulkSend.sol
 
@@ -17,9 +17,9 @@ BulkSend 是一个批量发送合约，支持原生代币、ERC20、ERC721 和 E
 |---------|------|
 | 严重 (Critical) | 0 |
 | 高危 (High) | 0 |
-| 中危 (Medium) | 1 |
-| 低危 (Low) | 3 |
-| 信息 (Informational) | 4 |
+| 中危 (Medium) | 0 |
+| 低危 (Low) | 1 |
+| 信息 (Informational) | 3 |
 
 ---
 
@@ -33,6 +33,8 @@ BulkSend 是一个批量发送合约，支持原生代币、ERC20、ERC721 和 E
 | `sendNativeSameAmount` | 公开 | 批量发送相同金额的原生代币 |
 | `sendToken` | 公开 | 批量发送不同金额的 ERC20 代币 |
 | `sendTokenSameAmount` | 公开 | 批量发送相同金额的 ERC20 代币 |
+| `sendTokenViaContract` | 公开 | Gas 优化版 ERC20 批量发送 (先归集后分发) |
+| `sendTokenSameAmountViaContract` | 公开 | Gas 优化版 ERC20 批量发送 (相同金额) |
 | `sendERC721` | 公开 | 批量发送 ERC721 NFT |
 | `sendERC1155` | 公开 | 批量发送 ERC1155 代币 |
 | `sendERC1155SameToken` | 公开 | 批量发送相同的 ERC1155 代币 |
@@ -43,64 +45,25 @@ BulkSend 是一个批量发送合约，支持原生代币、ERC20、ERC721 和 E
 
 ### 2.2 依赖项
 
-- OpenZeppelin Contracts v5.x
+- OpenZeppelin Contracts v4.7.0
   - `Ownable` - 所有权管理
   - `ReentrancyGuard` - 重入保护
   - `SafeERC20` - 安全的 ERC20 转账
   - `ERC1155Holder` - ERC1155 接收器
 
+### 2.3 安全常量
+
+- `MAX_BATCH = 500` - 单次批量发送最大数量限制
+
 ---
 
 ## 3. 安全发现
 
-### 3.1 中危 (Medium)
+### 3.1 低危 (Low)
 
-#### [M-01] sendNativeSameAmount 存在潜在的整数溢出风险
+#### [L-01] ERC721 使用 transferFrom 而非 safeTransferFrom
 
-**位置:** `BulkSend.sol:79`
-
-**描述:**
-```solidity
-uint256 total = len * amount;
-```
-
-当 `len` 和 `amount` 都很大时，乘法运算可能导致溢出。虽然 Solidity 0.8.x 默认启用溢出检查，但这会导致交易 revert 而不是给出明确的错误信息。
-
-**影响:** 低。实际场景中很难触发（需要极大的数值），但可能导致用户困惑。
-
-**建议:** 添加显式检查或使用更明确的错误信息：
-```solidity
-if (amount > 0 && len > type(uint256).max / amount) revert Overflow();
-```
-
-**状态:** 已确认，风险可接受
-
----
-
-### 3.2 低危 (Low)
-
-#### [L-01] 缺少事件记录的紧急提取函数
-
-**位置:** `BulkSend.sol:182-205`
-
-**描述:**
-`withdrawStuck*` 系列函数没有发出事件，这使得链下监控和审计变得困难。
-
-**影响:** 低。不影响功能，但降低了透明度。
-
-**建议:** 为每个提取函数添加事件：
-```solidity
-event StuckNativeWithdrawn(address indexed to, uint256 amount);
-event StuckTokenWithdrawn(address indexed token, address indexed to, uint256 amount);
-event StuckERC721Withdrawn(address indexed token, address indexed to, uint256 tokenId);
-event StuckERC1155Withdrawn(address indexed token, address indexed to, uint256 tokenId, uint256 amount);
-```
-
----
-
-#### [L-02] ERC721 使用 transferFrom 而非 safeTransferFrom
-
-**位置:** `BulkSend.sol:138, 197`
+**位置:** `BulkSend.sol:154, 219`
 
 **描述:**
 合约使用 `transferFrom` 而非 `safeTransferFrom` 进行 ERC721 转账。
@@ -114,31 +77,14 @@ event StuckERC1155Withdrawn(address indexed token, address indexed to, uint256 t
 
 ---
 
-#### [L-03] 缺少批量大小限制
-
-**位置:** 所有批量发送函数
-
-**描述:**
-合约没有限制单次批量发送的最大数量，可能导致 gas 超出区块限制。
-
-**影响:** 低。交易会因 gas 不足而失败，不会造成资金损失。
-
-**建议:** 考虑添加最大批量大小限制（如 500）：
-```solidity
-uint256 public constant MAX_BATCH_SIZE = 500;
-if (len > MAX_BATCH_SIZE) revert BatchTooLarge();
-```
-
----
-
-### 3.3 信息 (Informational)
+### 3.2 信息 (Informational)
 
 #### [I-01] 不支持 Fee-on-Transfer 代币
 
 **描述:**
-合约不支持转账时收取手续费的代币（如某些 deflationary 代币）。使用此类代币可能导致实际到账金额与预期不符。
+`sendTokenViaContract` 和 `sendTokenSameAmountViaContract` 函数不支持转账时收取手续费的代币。使用此类代币可能导致实际到账金额与预期不符。
 
-**建议:** 在文档中明确说明不支持此类代币。
+**说明:** 已在代码注释和文档中明确说明。用户可使用 `sendToken` 或 `sendTokenSameAmount` 函数处理此类代币。
 
 ---
 
@@ -147,27 +93,28 @@ if (len > MAX_BATCH_SIZE) revert BatchTooLarge();
 **描述:**
 合约不支持余额会自动变化的 rebasing 代币（如 stETH、AMPL）。
 
-**建议:** 在文档中明确说明不支持此类代币。
+**说明:** 已在文档中明确说明不支持此类代币。
 
 ---
 
-#### [I-03] 构造函数缺少显式 Owner 设置
-
-**位置:** 合约继承 `Ownable`
-
-**描述:**
-合约使用 OpenZeppelin 的 `Ownable`，默认将部署者设为 owner。建议在构造函数中显式设置以提高代码可读性。
-
-**当前实现:** 隐式使用 `Ownable(msg.sender)`
-
----
-
-#### [I-04] 缺少 NatSpec 文档
+#### [I-03] 缺少 NatSpec 文档
 
 **描述:**
 合约函数缺少 NatSpec 注释，降低了代码可读性和自动文档生成能力。
 
 **建议:** 为所有公开函数添加 NatSpec 注释。
+
+---
+
+### 3.3 已修复问题
+
+以下问题在 v1.1.0 版本中已修复：
+
+| 问题 | 状态 |
+|------|------|
+| [L-01] 缺少事件记录的紧急提取函数 | ✅ 已添加 4 个 withdraw 事件 |
+| [L-03] 缺少批量大小限制 | ✅ 已添加 MAX_BATCH = 200 限制 |
+| [M-01] 整数溢出风险 | ✅ 已通过 MAX_BATCH 限制缓解 |
 
 ---
 
@@ -183,6 +130,8 @@ if (len > MAX_BATCH_SIZE) revert BatchTooLarge();
 | sendNativeSameAmount | ✅ |
 | sendToken | ✅ |
 | sendTokenSameAmount | ✅ |
+| sendTokenViaContract | ✅ |
+| sendTokenSameAmountViaContract | ✅ |
 | sendERC721 | ✅ |
 | sendERC1155 | ✅ |
 | sendERC1155SameToken | ✅ |
@@ -199,6 +148,7 @@ if (len > MAX_BATCH_SIZE) revert BatchTooLarge();
 | 零地址检查 | ✅ `ZeroAddress()` |
 | 零金额检查 | ✅ `ZeroAmount()` |
 | 余额不足检查 | ✅ `InsufficientValue()` |
+| 批量大小检查 | ✅ `BatchTooLarge()` |
 
 ### 4.3 安全的代币转账 ✅
 
@@ -249,16 +199,18 @@ if (len > MAX_BATCH_SIZE) revert BatchTooLarge();
 
 ## 6. 测试覆盖率
 
-合约包含 60 个测试用例，覆盖以下场景：
+合约包含 80 个测试用例，覆盖以下场景：
 
 | 测试类别 | 测试数量 | 状态 |
 |---------|---------|------|
 | SendNative | 6 | ✅ 全部通过 |
 | SendNativeSameAmount | 6 | ✅ 全部通过 |
 | SendToken | 8 | ✅ 全部通过 |
+| SendTokenViaContract | 10 | ✅ 全部通过 |
 | SendERC721 | 4 | ✅ 全部通过 |
 | SendERC1155 | 8 | ✅ 全部通过 |
 | Withdraw | 16 | ✅ 全部通过 |
+| BatchLimit | 10 | ✅ 全部通过 |
 | GasBenchmark | 12 | ✅ 全部通过 |
 
 ### 测试场景覆盖
@@ -270,7 +222,9 @@ if (len > MAX_BATCH_SIZE) revert BatchTooLarge();
 - ✅ 零地址 revert
 - ✅ 零金额 revert
 - ✅ 余额不足 revert
+- ✅ 批量超限 revert (BatchTooLarge)
 - ✅ 非 Owner 调用紧急函数 revert
+- ✅ Withdraw 事件发出
 
 ---
 

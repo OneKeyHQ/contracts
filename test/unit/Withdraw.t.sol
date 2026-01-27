@@ -15,6 +15,11 @@ contract WithdrawTest is Test {
     address public owner;
     address public alice = makeAddr("alice");
 
+    event StuckNativeWithdrawn(address indexed to, uint256 amount);
+    event StuckTokenWithdrawn(address indexed token, address indexed to, uint256 amount);
+    event StuckERC721Withdrawn(address indexed token, address indexed to, uint256 tokenId);
+    event StuckERC1155Withdrawn(address indexed token, address indexed to, uint256 tokenId, uint256 amount);
+
     function onERC1155Received(address, address, uint256, uint256, bytes calldata) external pure returns (bytes4) {
         return this.onERC1155Received.selector;
     }
@@ -33,6 +38,10 @@ contract WithdrawTest is Test {
 
     function test_withdrawStuckNative_success() public {
         uint256 balanceBefore = alice.balance;
+
+        vm.expectEmit(true, false, false, true);
+        emit StuckNativeWithdrawn(alice, 10 ether);
+
         bulkSend.withdrawStuckNative(alice);
         assertEq(alice.balance, balanceBefore + 10 ether);
         assertEq(address(bulkSend).balance, 0);
@@ -51,6 +60,10 @@ contract WithdrawTest is Test {
 
     function test_withdrawStuckToken_success() public {
         uint256 balanceBefore = token.balanceOf(alice);
+
+        vm.expectEmit(true, true, false, true);
+        emit StuckTokenWithdrawn(address(token), alice, 1000e18);
+
         bulkSend.withdrawStuckToken(address(token), alice);
         assertEq(token.balanceOf(alice), balanceBefore + 1000e18);
         assertEq(token.balanceOf(address(bulkSend)), 0);
@@ -75,6 +88,10 @@ contract WithdrawTest is Test {
     // ERC721 withdraw tests
     function test_withdrawStuckERC721_success() public {
         assertEq(nft.ownerOf(0), address(bulkSend));
+
+        vm.expectEmit(true, true, false, true);
+        emit StuckERC721Withdrawn(address(nft), alice, 0);
+
         bulkSend.withdrawStuckERC721(address(nft), alice, 0);
         assertEq(nft.ownerOf(0), alice);
     }
@@ -98,6 +115,10 @@ contract WithdrawTest is Test {
     // ERC1155 withdraw tests
     function test_withdrawStuckERC1155_success() public {
         assertEq(multiToken.balanceOf(address(bulkSend), 1), 100);
+
+        vm.expectEmit(true, true, false, true);
+        emit StuckERC1155Withdrawn(address(multiToken), alice, 1, 100);
+
         bulkSend.withdrawStuckERC1155(address(multiToken), alice, 1, 100);
         assertEq(multiToken.balanceOf(alice, 1), 100);
         assertEq(multiToken.balanceOf(address(bulkSend), 1), 0);

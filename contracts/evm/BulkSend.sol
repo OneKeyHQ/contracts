@@ -11,6 +11,9 @@ import {ERC1155Holder} from "openzeppelin-contracts/contracts/token/ERC1155/util
 contract BulkSend is Ownable, ReentrancyGuard, ERC1155Holder {
     using SafeERC20 for IERC20;
 
+    // 500 recipients * ~38k gas per transfer ≈ 19M gas, safely under 30M block gas limit
+    uint256 public constant MAX_BATCH = 500;
+
     struct TokenTransfer {
         address recipient;
         uint256 amount;
@@ -33,21 +36,28 @@ contract BulkSend is Ownable, ReentrancyGuard, ERC1155Holder {
     error InsufficientValue();
     error RefundFailed();
     error TransferFailed();
+    error BatchTooLarge();
 
     event NativeSent(address indexed from, address indexed to, uint256 amount);
     event TokenSent(address indexed token, address indexed from, address indexed to, uint256 amount);
     event ERC721Sent(address indexed token, address indexed from, address indexed to, uint256 tokenId);
     event ERC1155Sent(address indexed token, address indexed from, address indexed to, uint256 tokenId, uint256 amount);
+    event StuckNativeWithdrawn(address indexed to, uint256 amount);
+    event StuckTokenWithdrawn(address indexed token, address indexed to, uint256 amount);
+    event StuckERC721Withdrawn(address indexed token, address indexed to, uint256 tokenId);
+    event StuckERC1155Withdrawn(address indexed token, address indexed to, uint256 tokenId, uint256 amount);
 
     function sendNative(TokenTransfer[] calldata transfers) external payable nonReentrant {
         uint256 len = transfers.length;
         if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
 
         uint256 total;
         for (uint256 i; i < len;) {
-            if (transfers[i].recipient == address(0)) revert ZeroAddress();
-            if (transfers[i].amount == 0) revert ZeroAmount();
-            total += transfers[i].amount;
+            TokenTransfer calldata t = transfers[i];
+            if (t.recipient == address(0)) revert ZeroAddress();
+            if (t.amount == 0) revert ZeroAmount();
+            total += t.amount;
             unchecked {
                 ++i;
             }
@@ -56,9 +66,10 @@ contract BulkSend is Ownable, ReentrancyGuard, ERC1155Holder {
         if (msg.value < total) revert InsufficientValue();
 
         for (uint256 i; i < len;) {
-            (bool success,) = transfers[i].recipient.call{value: transfers[i].amount}("");
+            TokenTransfer calldata t = transfers[i];
+            (bool success,) = t.recipient.call{value: t.amount}("");
             if (!success) revert TransferFailed();
-            emit NativeSent(msg.sender, transfers[i].recipient, transfers[i].amount);
+            emit NativeSent(msg.sender, t.recipient, t.amount);
             unchecked {
                 ++i;
             }
@@ -74,6 +85,7 @@ contract BulkSend is Ownable, ReentrancyGuard, ERC1155Holder {
     function sendNativeSameAmount(address[] calldata recipients, uint256 amount) external payable nonReentrant {
         uint256 len = recipients.length;
         if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
         if (amount == 0) revert ZeroAmount();
 
         uint256 total = len * amount;
@@ -100,12 +112,14 @@ contract BulkSend is Ownable, ReentrancyGuard, ERC1155Holder {
         if (token == address(0)) revert ZeroAddress();
         uint256 len = transfers.length;
         if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
 
         for (uint256 i; i < len;) {
-            if (transfers[i].recipient == address(0)) revert ZeroAddress();
-            if (transfers[i].amount == 0) revert ZeroAmount();
-            IERC20(token).safeTransferFrom(msg.sender, transfers[i].recipient, transfers[i].amount);
-            emit TokenSent(token, msg.sender, transfers[i].recipient, transfers[i].amount);
+            TokenTransfer calldata t = transfers[i];
+            if (t.recipient == address(0)) revert ZeroAddress();
+            if (t.amount == 0) revert ZeroAmount();
+            IERC20(token).safeTransferFrom(msg.sender, t.recipient, t.amount);
+            emit TokenSent(token, msg.sender, t.recipient, t.amount);
             unchecked {
                 ++i;
             }
@@ -116,6 +130,7 @@ contract BulkSend is Ownable, ReentrancyGuard, ERC1155Holder {
         if (token == address(0)) revert ZeroAddress();
         uint256 len = recipients.length;
         if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
         if (amount == 0) revert ZeroAmount();
 
         for (uint256 i; i < len;) {
@@ -132,11 +147,13 @@ contract BulkSend is Ownable, ReentrancyGuard, ERC1155Holder {
         if (token == address(0)) revert ZeroAddress();
         uint256 len = transfers.length;
         if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
 
         for (uint256 i; i < len;) {
-            if (transfers[i].recipient == address(0)) revert ZeroAddress();
-            IERC721(token).transferFrom(msg.sender, transfers[i].recipient, transfers[i].tokenId);
-            emit ERC721Sent(token, msg.sender, transfers[i].recipient, transfers[i].tokenId);
+            ERC721Transfer calldata t = transfers[i];
+            if (t.recipient == address(0)) revert ZeroAddress();
+            IERC721(token).transferFrom(msg.sender, t.recipient, t.tokenId);
+            emit ERC721Sent(token, msg.sender, t.recipient, t.tokenId);
             unchecked {
                 ++i;
             }
@@ -147,13 +164,14 @@ contract BulkSend is Ownable, ReentrancyGuard, ERC1155Holder {
         if (token == address(0)) revert ZeroAddress();
         uint256 len = transfers.length;
         if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
 
         for (uint256 i; i < len;) {
-            if (transfers[i].recipient == address(0)) revert ZeroAddress();
-            if (transfers[i].amount == 0) revert ZeroAmount();
-            IERC1155(token)
-                .safeTransferFrom(msg.sender, transfers[i].recipient, transfers[i].tokenId, transfers[i].amount, "");
-            emit ERC1155Sent(token, msg.sender, transfers[i].recipient, transfers[i].tokenId, transfers[i].amount);
+            ERC1155Transfer calldata t = transfers[i];
+            if (t.recipient == address(0)) revert ZeroAddress();
+            if (t.amount == 0) revert ZeroAmount();
+            IERC1155(token).safeTransferFrom(msg.sender, t.recipient, t.tokenId, t.amount, "");
+            emit ERC1155Sent(token, msg.sender, t.recipient, t.tokenId, t.amount);
             unchecked {
                 ++i;
             }
@@ -167,6 +185,7 @@ contract BulkSend is Ownable, ReentrancyGuard, ERC1155Holder {
         if (token == address(0)) revert ZeroAddress();
         uint256 len = recipients.length;
         if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
         if (amount == 0) revert ZeroAmount();
 
         for (uint256 i; i < len;) {
@@ -181,20 +200,25 @@ contract BulkSend is Ownable, ReentrancyGuard, ERC1155Holder {
 
     function withdrawStuckNative(address to) external onlyOwner {
         if (to == address(0)) revert ZeroAddress();
-        (bool success,) = to.call{value: address(this).balance}("");
+        uint256 amount = address(this).balance;
+        (bool success,) = to.call{value: amount}("");
         if (!success) revert TransferFailed();
+        emit StuckNativeWithdrawn(to, amount);
     }
 
     function withdrawStuckToken(address token, address to) external onlyOwner {
         if (token == address(0)) revert ZeroAddress();
         if (to == address(0)) revert ZeroAddress();
-        IERC20(token).safeTransfer(to, IERC20(token).balanceOf(address(this)));
+        uint256 amount = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransfer(to, amount);
+        emit StuckTokenWithdrawn(token, to, amount);
     }
 
     function withdrawStuckERC721(address token, address to, uint256 tokenId) external onlyOwner {
         if (token == address(0)) revert ZeroAddress();
         if (to == address(0)) revert ZeroAddress();
         IERC721(token).transferFrom(address(this), to, tokenId);
+        emit StuckERC721Withdrawn(token, to, tokenId);
     }
 
     function withdrawStuckERC1155(address token, address to, uint256 tokenId, uint256 amount) external onlyOwner {
@@ -202,5 +226,64 @@ contract BulkSend is Ownable, ReentrancyGuard, ERC1155Holder {
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
         IERC1155(token).safeTransferFrom(address(this), to, tokenId, amount, "");
+        emit StuckERC1155Withdrawn(token, to, tokenId, amount);
     }
+
+    // Gas-optimized ERC20 batch send: transfers tokens to contract first, then distributes
+    // Note: Does NOT support fee-on-transfer tokens
+    function sendTokenViaContract(address token, TokenTransfer[] calldata transfers) external nonReentrant {
+        if (token == address(0)) revert ZeroAddress();
+        uint256 len = transfers.length;
+        if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
+
+        uint256 total;
+        for (uint256 i; i < len;) {
+            TokenTransfer calldata t = transfers[i];
+            if (t.recipient == address(0)) revert ZeroAddress();
+            if (t.amount == 0) revert ZeroAmount();
+            total += t.amount;
+            unchecked {
+                ++i;
+            }
+        }
+
+        IERC20(token).safeTransferFrom(msg.sender, address(this), total);
+
+        for (uint256 i; i < len;) {
+            TokenTransfer calldata t = transfers[i];
+            IERC20(token).safeTransfer(t.recipient, t.amount);
+            emit TokenSent(token, msg.sender, t.recipient, t.amount);
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    // Gas-optimized ERC20 batch send with same amount
+    // Note: Does NOT support fee-on-transfer tokens
+    function sendTokenSameAmountViaContract(address token, address[] calldata recipients, uint256 amount)
+        external
+        nonReentrant
+    {
+        if (token == address(0)) revert ZeroAddress();
+        uint256 len = recipients.length;
+        if (len == 0) revert EmptyArray();
+        if (len > MAX_BATCH) revert BatchTooLarge();
+        if (amount == 0) revert ZeroAmount();
+
+        uint256 total = len * amount;
+        IERC20(token).safeTransferFrom(msg.sender, address(this), total);
+
+        for (uint256 i; i < len;) {
+            if (recipients[i] == address(0)) revert ZeroAddress();
+            IERC20(token).safeTransfer(recipients[i], amount);
+            emit TokenSent(token, msg.sender, recipients[i], amount);
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    receive() external payable {}
 }
