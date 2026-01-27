@@ -1,32 +1,28 @@
-import { useAccount, useBalance } from 'wagmi';
-import { type Chain, formatUnits } from 'viem';
+import { useAccount } from 'wagmi';
+import { type Chain } from 'viem';
 import { supportedChains, allMainnetChains } from '../config/chains';
+import { useStaggeredBalances, formatBalance, hasEnoughBalance } from '../hooks/useStaggeredBalances';
 
 interface ChainItemProps {
   chain: Chain;
   selected: boolean;
   onToggle: () => void;
+  balance: bigint | null;
+  symbol: string;
+  decimals: number;
+  isLoading: boolean;
+  error: Error | null;
 }
 
-function ChainItem({ chain, selected, onToggle }: ChainItemProps) {
-  const { address } = useAccount();
-  const { data: balance, isLoading } = useBalance({
-    address,
-    chainId: chain.id
-  });
-
-  const formatBal = (b: typeof balance) => {
-    if (!b) return null;
-    return parseFloat(formatUnits(b.value, b.decimals)).toFixed(4);
-  };
-
-  const hasBalance = balance && parseFloat(formatUnits(balance.value, balance.decimals)) > 0.01;
+function ChainItem({ chain, selected, onToggle, balance, symbol, decimals, isLoading, error }: ChainItemProps) {
+  const formattedBalance = formatBalance(balance, decimals);
+  const hasSufficientBalance = hasEnoughBalance(balance, decimals);
 
   return (
     <div
       className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
         selected ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'
-      } ${!hasBalance && !isLoading ? 'opacity-50' : ''}`}
+      } ${!hasSufficientBalance && !isLoading ? 'opacity-50' : ''}`}
       onClick={onToggle}
     >
       <div className="flex items-center gap-3">
@@ -41,9 +37,11 @@ function ChainItem({ chain, selected, onToggle }: ChainItemProps) {
       <div className="text-sm text-gray-300">
         {isLoading ? (
           <span className="text-gray-500">Loading...</span>
-        ) : balance ? (
-          <span className={!hasBalance ? 'text-red-400' : ''}>
-            {formatBal(balance)} {balance.symbol}
+        ) : error ? (
+          <span className="text-yellow-500" title={error.message}>RPC Error</span>
+        ) : formattedBalance !== null ? (
+          <span className={!hasSufficientBalance ? 'text-red-400' : ''}>
+            {formattedBalance} {symbol}
           </span>
         ) : (
           <span className="text-gray-500">-</span>
@@ -59,6 +57,15 @@ interface ChainSelectorProps {
 }
 
 export function ChainSelector({ selectedChains, onSelectionChange }: ChainSelectorProps) {
+  const { address } = useAccount();
+
+  // Get all chain IDs for staggered balance fetching
+  const allChainIds = allMainnetChains.map(c => c.id);
+  const balances = useStaggeredBalances(address, allChainIds, { staggerDelay: 200 });
+
+  // Create a map for quick balance lookup
+  const balanceMap = new Map(balances.map(b => [b.chainId, b]));
+
   const toggleChain = (chainId: number) => {
     if (selectedChains.includes(chainId)) {
       onSelectionChange(selectedChains.filter(id => id !== chainId));
@@ -73,6 +80,23 @@ export function ChainSelector({ selectedChains, onSelectionChange }: ChainSelect
 
   const selectNone = () => {
     onSelectionChange([]);
+  };
+
+  const renderChainItem = (chain: Chain) => {
+    const balanceData = balanceMap.get(chain.id);
+    return (
+      <ChainItem
+        key={chain.id}
+        chain={chain}
+        selected={selectedChains.includes(chain.id)}
+        onToggle={() => toggleChain(chain.id)}
+        balance={balanceData?.balance ?? null}
+        symbol={balanceData?.symbol ?? chain.nativeCurrency.symbol}
+        decimals={balanceData?.decimals ?? chain.nativeCurrency.decimals}
+        isLoading={balanceData?.isLoading ?? true}
+        error={balanceData?.error ?? null}
+      />
+    );
   };
 
   return (
@@ -93,42 +117,21 @@ export function ChainSelector({ selectedChains, onSelectionChange }: ChainSelect
         <div>
           <h3 className="text-sm text-gray-400 mb-2">P0 - Priority</h3>
           <div className="space-y-2">
-            {supportedChains.mainnet.p0.map(chain => (
-              <ChainItem
-                key={chain.id}
-                chain={chain}
-                selected={selectedChains.includes(chain.id)}
-                onToggle={() => toggleChain(chain.id)}
-              />
-            ))}
+            {supportedChains.mainnet.p0.map(renderChainItem)}
           </div>
         </div>
 
         <div>
           <h3 className="text-sm text-gray-400 mb-2">P1 - Secondary</h3>
           <div className="space-y-2">
-            {supportedChains.mainnet.p1.map(chain => (
-              <ChainItem
-                key={chain.id}
-                chain={chain}
-                selected={selectedChains.includes(chain.id)}
-                onToggle={() => toggleChain(chain.id)}
-              />
-            ))}
+            {supportedChains.mainnet.p1.map(renderChainItem)}
           </div>
         </div>
 
         <div>
           <h3 className="text-sm text-gray-400 mb-2">P2 - Extended</h3>
           <div className="space-y-2">
-            {supportedChains.mainnet.p2.map(chain => (
-              <ChainItem
-                key={chain.id}
-                chain={chain}
-                selected={selectedChains.includes(chain.id)}
-                onToggle={() => toggleChain(chain.id)}
-              />
-            ))}
+            {supportedChains.mainnet.p2.map(renderChainItem)}
           </div>
         </div>
       </div>

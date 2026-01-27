@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useAccount, usePublicClient, useWalletClient, useSwitchChain } from 'wagmi';
 import { allMainnetChains } from '../config/chains';
 import { BULK_SEND_BYTECODE, BULK_SEND_ABI } from '../config/contract';
+import { withRetry, sleep, getErrorMessage } from '../utils/retry';
+
+/** Delay between chain deployments to avoid rate limiting (ms) */
+const INTER_DEPLOYMENT_DELAY = 2000;
 
 export interface DeploymentResult {
   chainId: number;
@@ -9,7 +13,7 @@ export interface DeploymentResult {
   address?: string;
   txHash?: string;
   error?: string;
-  status: 'pending' | 'deploying' | 'success' | 'failed';
+  status: 'pending' | 'deploying' | 'success' | 'failed' | 'retrying';
 }
 
 interface DeployButtonProps {
@@ -25,79 +29,155 @@ export function DeployButton({ selectedChains, onDeploymentUpdate }: DeployButto
   const [isDeploying, setIsDeploying] = useState(false);
   const [results, setResults] = useState<DeploymentResult[]>([]);
 
-  const deploy = async () => {
-    if (!walletClient || !address || selectedChains.length === 0) return;
+  const updateResult = useCallback((
+    deployResults: DeploymentResult[],
+    index: number,
+    update: Partial<DeploymentResult>
+  ) => {
+    deployResults[index] = { ...deployResults[index], ...update };
+    setResults([...deployResults]);
+    onDeploymentUpdate([...deployResults]);
+  }, [onDeploymentUpdate]);
+
+  const deployToChain = async (
+    chainId: number,
+    deployResults: DeploymentResult[],
+    index: number
+  ): Promise<void> => {
+    // Switch chain if needed
+    if (currentChain?.id !== chainId) {
+      await switchChainAsync({ chainId });
+    }
+
+    // Deploy contract with retry
+    const hash = await withRetry(
+      () => walletClient!.deployContract({
+        abi: BULK_SEND_ABI,
+        bytecode: BULK_SEND_BYTECODE,
+        account: address!,
+      }),
+      {
+        maxRetries: 3,
+        onRetry: (retryError, attempt, _delay) => {
+          updateResult(deployResults, index, {
+            status: 'retrying',
+            error: `Retry ${attempt}/3: ${getErrorMessage(retryError)}`,
+          });
+        },
+      }
+    );
+
+    updateResult(deployResults, index, { txHash: hash });
+
+    // Wait for transaction with retry
+    const receipt = await withRetry(
+      () => publicClient!.waitForTransactionReceipt({ hash }),
+      {
+        maxRetries: 3,
+        onRetry: (_error, attempt) => {
+          updateResult(deployResults, index, {
+            error: `Waiting for confirmation (retry ${attempt}/3)...`,
+          });
+        },
+      }
+    );
+
+    updateResult(deployResults, index, {
+      status: 'success',
+      address: receipt.contractAddress || undefined,
+      error: undefined,
+    });
+  };
+
+  const deploy = async (chainsToDeployTo?: number[]) => {
+    if (!walletClient || !address) return;
+
+    const targetChains = chainsToDeployTo || selectedChains;
+    if (targetChains.length === 0) return;
 
     setIsDeploying(true);
-    const deployResults: DeploymentResult[] = selectedChains.map(chainId => {
-      const chain = allMainnetChains.find(c => c.id === chainId);
-      return {
-        chainId,
-        chainName: chain?.name || `Chain ${chainId}`,
-        status: 'pending' as const,
-      };
-    });
+
+    // Initialize or update results
+    let deployResults: DeploymentResult[];
+    if (chainsToDeployTo) {
+      // Retry failed - keep existing results, reset failed ones
+      deployResults = results.map(r =>
+        targetChains.includes(r.chainId)
+          ? { ...r, status: 'pending' as const, error: undefined }
+          : r
+      );
+    } else {
+      // Fresh deploy
+      deployResults = targetChains.map(chainId => {
+        const chain = allMainnetChains.find(c => c.id === chainId);
+        return {
+          chainId,
+          chainName: chain?.name || `Chain ${chainId}`,
+          status: 'pending' as const,
+        };
+      });
+    }
+
     setResults(deployResults);
     onDeploymentUpdate(deployResults);
 
-    for (let i = 0; i < selectedChains.length; i++) {
-      const chainId = selectedChains[i];
+    for (let i = 0; i < targetChains.length; i++) {
+      const chainId = targetChains[i];
+      const resultIndex = deployResults.findIndex(r => r.chainId === chainId);
 
-      // Update status to deploying
-      deployResults[i].status = 'deploying';
-      setResults([...deployResults]);
-      onDeploymentUpdate([...deployResults]);
-
-      try {
-        // Switch chain if needed
-        if (currentChain?.id !== chainId) {
-          await switchChainAsync({ chainId });
-        }
-
-        // Deploy contract
-        const hash = await walletClient.deployContract({
-          abi: BULK_SEND_ABI,
-          bytecode: BULK_SEND_BYTECODE,
-          account: address,
-        });
-
-        // Wait for transaction
-        const receipt = await publicClient?.waitForTransactionReceipt({ hash });
-
-        deployResults[i] = {
-          ...deployResults[i],
-          status: 'success',
-          txHash: hash,
-          address: receipt?.contractAddress || undefined,
-        };
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Deployment failed';
-        deployResults[i] = {
-          ...deployResults[i],
-          status: 'failed',
-          error: errorMessage,
-        };
+      // Add delay between deployments (skip first)
+      if (i > 0) {
+        await sleep(INTER_DEPLOYMENT_DELAY);
       }
 
-      setResults([...deployResults]);
-      onDeploymentUpdate([...deployResults]);
+      updateResult(deployResults, resultIndex, { status: 'deploying' });
+
+      try {
+        await deployToChain(chainId, deployResults, resultIndex);
+      } catch (error: unknown) {
+        const err = error instanceof Error ? error : new Error('Deployment failed');
+        updateResult(deployResults, resultIndex, {
+          status: 'failed',
+          error: getErrorMessage(err),
+        });
+      }
     }
 
     setIsDeploying(false);
   };
 
+  const retryFailed = () => {
+    const failedChains = results
+      .filter(r => r.status === 'failed')
+      .map(r => r.chainId);
+    if (failedChains.length > 0) {
+      deploy(failedChains);
+    }
+  };
+
+  const hasFailedDeployments = results.some(r => r.status === 'failed');
+
   return (
     <div className="bg-gray-800 rounded-lg p-4">
-      <button
-        onClick={deploy}
-        disabled={isDeploying || selectedChains.length === 0 || !address}
-        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-4 py-3 rounded-lg font-semibold"
-      >
-        {isDeploying
-          ? 'Deploying...'
-          : `Deploy to ${selectedChains.length} chain${selectedChains.length !== 1 ? 's' : ''}`
-        }
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={() => deploy()}
+          disabled={isDeploying || selectedChains.length === 0 || !address}
+          className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-4 py-3 rounded-lg font-semibold"
+        >
+          {isDeploying
+            ? 'Deploying...'
+            : `Deploy to ${selectedChains.length} chain${selectedChains.length !== 1 ? 's' : ''}`}
+        </button>
+        {hasFailedDeployments && !isDeploying && (
+          <button
+            onClick={retryFailed}
+            className="bg-yellow-600 hover:bg-yellow-700 px-4 py-3 rounded-lg font-semibold"
+          >
+            Retry Failed
+          </button>
+        )}
+      </div>
 
       {results.length > 0 && (
         <div className="mt-4 space-y-2">
@@ -108,6 +188,7 @@ export function DeployButton({ selectedChains, onDeploymentUpdate }: DeployButto
                 result.status === 'success' ? 'bg-green-900' :
                 result.status === 'failed' ? 'bg-red-900' :
                 result.status === 'deploying' ? 'bg-yellow-900' :
+                result.status === 'retrying' ? 'bg-orange-900' :
                 'bg-gray-700'
               }`}
             >
