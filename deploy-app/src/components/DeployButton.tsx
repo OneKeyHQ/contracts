@@ -7,6 +7,9 @@ import { withRetry, sleep, getErrorMessage } from '../utils/retry';
 /** Delay between chain deployments to avoid rate limiting (ms) */
 const INTER_DEPLOYMENT_DELAY = 2000;
 
+/** Polling interval for transaction receipt (ms) - reduced to avoid rate limiting */
+const TX_POLLING_INTERVAL = 5000;
+
 export interface DeploymentResult {
   chainId: number;
   chainName: string;
@@ -69,9 +72,12 @@ export function DeployButton({ selectedChains, onDeploymentUpdate }: DeployButto
 
     updateResult(deployResults, index, { txHash: hash });
 
-    // Wait for transaction with retry
+    // Wait for transaction with retry (reduced polling frequency to avoid rate limiting)
     const receipt = await withRetry(
-      () => publicClient!.waitForTransactionReceipt({ hash }),
+      () => publicClient!.waitForTransactionReceipt({
+        hash,
+        pollingInterval: TX_POLLING_INTERVAL,
+      }),
       {
         maxRetries: 3,
         onRetry: (_error, attempt) => {

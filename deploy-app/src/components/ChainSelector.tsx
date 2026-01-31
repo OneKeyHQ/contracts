@@ -59,9 +59,9 @@ interface ChainSelectorProps {
 export function ChainSelector({ selectedChains, onSelectionChange }: ChainSelectorProps) {
   const { address } = useAccount();
 
-  // Get all chain IDs for staggered balance fetching
+  // Get all chain IDs for parallel balance fetching
   const allChainIds = allMainnetChains.map(c => c.id);
-  const balances = useStaggeredBalances(address, allChainIds, { staggerDelay: 200 });
+  const balances = useStaggeredBalances(address, allChainIds, { concurrency: 5 });
 
   // Create a map for quick balance lookup
   const balanceMap = new Map(balances.map(b => [b.chainId, b]));
