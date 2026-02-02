@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { useAccount, usePublicClient, useWalletClient, useSwitchChain } from 'wagmi';
+import { useAccount, useSwitchChain, useConfig } from 'wagmi';
+import { getPublicClient, getWalletClient } from 'wagmi/actions';
 import { allMainnetChains } from '../config/chains';
 import { BULK_SEND_BYTECODE, BULK_SEND_ABI } from '../config/contract';
 import { withRetry, sleep, getErrorMessage } from '../utils/retry';
@@ -25,10 +26,9 @@ interface DeployButtonProps {
 }
 
 export function DeployButton({ selectedChains, onDeploymentUpdate }: DeployButtonProps) {
-  const { address, chain: currentChain } = useAccount();
+  const { address } = useAccount();
   const { switchChainAsync } = useSwitchChain();
-  const { data: walletClient } = useWalletClient();
-  const publicClient = usePublicClient();
+  const config = useConfig();
   const [isDeploying, setIsDeploying] = useState(false);
   const [results, setResults] = useState<DeploymentResult[]>([]);
 
@@ -47,14 +47,29 @@ export function DeployButton({ selectedChains, onDeploymentUpdate }: DeployButto
     deployResults: DeploymentResult[],
     index: number
   ): Promise<void> => {
-    // Switch chain if needed
-    if (currentChain?.id !== chainId) {
-      await switchChainAsync({ chainId });
+    // Always switch chain before deployment to ensure wallet is on correct network
+    updateResult(deployResults, index, { error: 'Switching network...' });
+    await switchChainAsync({ chainId });
+
+    // Small delay to ensure wallet state is updated after chain switch
+    await sleep(500);
+
+    // Get fresh clients for the target chain
+    const walletClient = await getWalletClient(config, { chainId });
+    const publicClient = getPublicClient(config, { chainId });
+
+    if (!walletClient) {
+      throw new Error('Failed to get wallet client after chain switch');
     }
+    if (!publicClient) {
+      throw new Error('Failed to get public client for chain');
+    }
+
+    updateResult(deployResults, index, { error: undefined });
 
     // Deploy contract with retry
     const hash = await withRetry(
-      () => walletClient!.deployContract({
+      () => walletClient.deployContract({
         abi: BULK_SEND_ABI,
         bytecode: BULK_SEND_BYTECODE,
         account: address!,
@@ -74,7 +89,7 @@ export function DeployButton({ selectedChains, onDeploymentUpdate }: DeployButto
 
     // Wait for transaction with retry (reduced polling frequency to avoid rate limiting)
     const receipt = await withRetry(
-      () => publicClient!.waitForTransactionReceipt({
+      () => publicClient.waitForTransactionReceipt({
         hash,
         pollingInterval: TX_POLLING_INTERVAL,
       }),
@@ -96,7 +111,7 @@ export function DeployButton({ selectedChains, onDeploymentUpdate }: DeployButto
   };
 
   const deploy = async (chainsToDeployTo?: number[]) => {
-    if (!walletClient || !address) return;
+    if (!address) return;
 
     const targetChains = chainsToDeployTo || selectedChains;
     if (targetChains.length === 0) return;
