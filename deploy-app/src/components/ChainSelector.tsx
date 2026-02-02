@@ -12,11 +12,13 @@ interface ChainItemProps {
   decimals: number;
   isLoading: boolean;
   error: Error | null;
+  minBalance: bigint | null;
 }
 
-function ChainItem({ chain, selected, onToggle, balance, symbol, decimals, isLoading, error }: ChainItemProps) {
+function ChainItem({ chain, selected, onToggle, balance, symbol, decimals, isLoading, error, minBalance }: ChainItemProps) {
   const formattedBalance = formatBalance(balance, decimals);
-  const hasSufficientBalance = hasEnoughBalance(balance, decimals);
+  const formattedMinBalance = formatBalance(minBalance, decimals);
+  const hasSufficientBalance = hasEnoughBalance(balance, minBalance);
 
   return (
     <div
@@ -42,6 +44,9 @@ function ChainItem({ chain, selected, onToggle, balance, symbol, decimals, isLoa
         ) : formattedBalance !== null ? (
           <span className={!hasSufficientBalance ? 'text-red-400' : ''}>
             {formattedBalance} {symbol}
+            {formattedMinBalance && (
+              <span className="text-gray-500 ml-1">(≥{formattedMinBalance})</span>
+            )}
           </span>
         ) : (
           <span className="text-gray-500">-</span>
@@ -57,11 +62,11 @@ interface ChainSelectorProps {
 }
 
 export function ChainSelector({ selectedChains, onSelectionChange }: ChainSelectorProps) {
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
 
   // Get all chain IDs for parallel balance fetching
   const allChainIds = allMainnetChains.map(c => c.id);
-  const balances = useStaggeredBalances(address, allChainIds, { concurrency: 5 });
+  const balances = useStaggeredBalances(address, allChainIds, { concurrency: 5, enabled: isConnected });
 
   // Create a map for quick balance lookup
   const balanceMap = new Map(balances.map(b => [b.chainId, b]));
@@ -84,6 +89,8 @@ export function ChainSelector({ selectedChains, onSelectionChange }: ChainSelect
 
   const renderChainItem = (chain: Chain) => {
     const balanceData = balanceMap.get(chain.id);
+    // When wallet is not connected, show as not loading with null balance (displays "-")
+    const isLoading = isConnected ? (balanceData?.isLoading ?? true) : false;
     return (
       <ChainItem
         key={chain.id}
@@ -93,8 +100,9 @@ export function ChainSelector({ selectedChains, onSelectionChange }: ChainSelect
         balance={balanceData?.balance ?? null}
         symbol={balanceData?.symbol ?? chain.nativeCurrency.symbol}
         decimals={balanceData?.decimals ?? chain.nativeCurrency.decimals}
-        isLoading={balanceData?.isLoading ?? true}
+        isLoading={isLoading}
         error={balanceData?.error ?? null}
+        minBalance={balanceData?.minBalance ?? null}
       />
     );
   };
