@@ -10,6 +10,16 @@ optimizer_runs = 200
 line_length = 120
 tab_width = 4
 
+[profile.ci]
+src = "contracts/evm"
+out = "out"
+libs = ["lib"]
+solc = "0.8.20"
+optimizer = true
+optimizer_runs = 200
+fuzz = { runs = 256 }
+invariant = { runs = 256 }
+
 [rpc_endpoints]
 ethereum = "${ETH_RPC_URL}"
 bsc = "${BSC_RPC_URL}"
