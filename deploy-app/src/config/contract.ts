@@ -3,3 +3,58 @@ export const BULK_SEND_BYTECODE = '0x608060405234801561000f575f80fd5b50610019336
 
 // Minimal ABI - constructor has no parameters
 export const BULK_SEND_ABI = [] as const;
+
+// ABI for transferOwnership (inherited from Ownable)
+export const TRANSFER_OWNERSHIP_ABI = [
+  {
+    type: 'function',
+    name: 'transferOwnership',
+    inputs: [{ name: 'newOwner', type: 'address', internalType: 'address' }],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+] as const;
+
+// ABI for withdrawStuck* rescue functions (owner only)
+export const WITHDRAW_ABI = [
+  {
+    type: 'function',
+    name: 'withdrawStuckNative',
+    inputs: [{ name: 'to', type: 'address', internalType: 'address' }],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'withdrawStuckToken',
+    inputs: [
+      { name: 'token', type: 'address', internalType: 'address' },
+      { name: 'to', type: 'address', internalType: 'address' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'withdrawStuckERC721',
+    inputs: [
+      { name: 'token', type: 'address', internalType: 'address' },
+      { name: 'to', type: 'address', internalType: 'address' },
+      { name: 'tokenId', type: 'uint256', internalType: 'uint256' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'withdrawStuckERC1155',
+    inputs: [
+      { name: 'token', type: 'address', internalType: 'address' },
+      { name: 'to', type: 'address', internalType: 'address' },
+      { name: 'tokenId', type: 'uint256', internalType: 'uint256' },
+      { name: 'amount', type: 'uint256', internalType: 'uint256' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+] as const;
