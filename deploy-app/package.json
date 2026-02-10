@@ -4,7 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "generate": "node ../scripts/generate-bytecode.mjs",
+    "verify": "node ../scripts/verify-bytecode.mjs",
+    "predev": "npm run generate",
     "dev": "vite",
+    "prebuild": "npm run generate",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

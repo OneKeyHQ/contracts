@@ -2,8 +2,9 @@ import { useState, useCallback } from 'react';
 import { useAccount, useSwitchChain, useConfig } from 'wagmi';
 import { getPublicClient, getWalletClient } from 'wagmi/actions';
 import { allMainnetChains } from '../config/chains';
-import { BULK_SEND_BYTECODE, BULK_SEND_ABI } from '../config/contract';
+import { BULK_SEND_BYTECODE, BULK_SEND_ABI } from '../config/contract.generated';
 import { withRetry, sleep, getErrorMessage } from '../utils/retry';
+import { verifyContract, type VerifyStatus } from '../utils/verify';
 
 /** Delay between chain deployments to avoid rate limiting (ms) */
 const INTER_DEPLOYMENT_DELAY = 2000;
@@ -18,6 +19,8 @@ export interface DeploymentResult {
   txHash?: string;
   error?: string;
   status: 'pending' | 'deploying' | 'success' | 'failed' | 'retrying';
+  verifyStatus?: VerifyStatus;
+  verifyMessage?: string;
 }
 
 interface DeployButtonProps {
@@ -103,11 +106,19 @@ export function DeployButton({ selectedChains, onDeploymentUpdate }: DeployButto
       }
     );
 
+    const contractAddress = receipt.contractAddress || undefined;
     updateResult(deployResults, index, {
       status: 'success',
-      address: receipt.contractAddress || undefined,
+      address: contractAddress,
       error: undefined,
     });
+
+    // Auto-verify source code on block explorer (best-effort, non-blocking)
+    if (contractAddress) {
+      updateResult(deployResults, index, { verifyStatus: 'verifying', verifyMessage: 'Verifying source code...' });
+      const result = await verifyContract(chainId, contractAddress);
+      updateResult(deployResults, index, { verifyStatus: result.status, verifyMessage: result.message });
+    }
   };
 
   const deploy = async (chainsToDeployTo?: number[]) => {
@@ -222,6 +233,18 @@ export function DeployButton({ selectedChains, onDeploymentUpdate }: DeployButto
               )}
               {result.error && (
                 <p className="text-xs mt-1 text-red-300">{result.error}</p>
+              )}
+              {result.verifyStatus && (
+                <p className={`text-xs mt-1 ${
+                  result.verifyStatus === 'verified' ? 'text-green-300' :
+                  result.verifyStatus === 'verifying' ? 'text-yellow-300' :
+                  result.verifyStatus === 'skipped' ? 'text-gray-400' :
+                  'text-orange-300'
+                }`}>
+                  {result.verifyStatus === 'verified' ? 'Source verified' :
+                   result.verifyStatus === 'verifying' ? 'Verifying...' :
+                   result.verifyMessage || result.verifyStatus}
+                </p>
               )}
             </div>
           ))}
