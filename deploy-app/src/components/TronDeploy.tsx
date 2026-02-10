@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTron } from '../hooks/useTron';
-import { TRON_BULK_SEND_BYTECODE, TRON_BULK_SEND_ABI } from '../config/tron-contract';
+import { TRON_BULK_SEND_BYTECODE, TRON_BULK_SEND_ABI } from '../config/tron-contract.generated';
 
 interface TronDeployResult {
   address?: string;
