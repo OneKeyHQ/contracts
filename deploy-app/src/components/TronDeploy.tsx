@@ -9,7 +9,11 @@ interface TronDeployResult {
   status: 'idle' | 'deploying' | 'success' | 'failed';
 }
 
-export function TronDeploy() {
+interface TronDeployProps {
+  onDeploySuccess?: (address: string) => void;
+}
+
+export function TronDeploy({ onDeploySuccess }: TronDeployProps) {
   const { isConnected, network } = useTron();
   const [result, setResult] = useState<TronDeployResult>({ status: 'idle' });
 
@@ -65,6 +69,10 @@ export function TronDeploy() {
           address: contractAddress || 'Pending confirmation...',
           txId,
         });
+
+        if (contractAddress) {
+          onDeploySuccess?.(contractAddress);
+        }
       } else {
         throw new Error(receipt.message || 'Transaction failed');
       }

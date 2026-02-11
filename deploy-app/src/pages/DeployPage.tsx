@@ -6,6 +6,7 @@ import { DeploymentReport } from '../components/DeploymentReport';
 import { TransferOwnership } from '../components/TransferOwnership';
 import { TronConnect } from '../components/TronConnect';
 import { TronDeploy } from '../components/TronDeploy';
+import { TronTransferOwnership } from '../components/TronTransferOwnership';
 
 type NetworkTab = 'evm' | 'tron';
 
@@ -13,6 +14,7 @@ export function DeployPage() {
   const [selectedChains, setSelectedChains] = useState<number[]>([]);
   const [deploymentResults, setDeploymentResults] = useState<DeploymentResult[]>([]);
   const [activeTab, setActiveTab] = useState<NetworkTab>('evm');
+  const [tronContractAddress, setTronContractAddress] = useState('');
 
   return (
     <>
@@ -63,7 +65,8 @@ export function DeployPage() {
       {activeTab === 'tron' && (
         <div className="space-y-6">
           <TronConnect />
-          <TronDeploy />
+          <TronDeploy onDeploySuccess={setTronContractAddress} />
+          <TronTransferOwnership contractAddress={tronContractAddress} />
         </div>
       )}
     </>
