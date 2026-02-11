@@ -17,6 +17,7 @@ interface ITRC1155 {
 
 contract BulkSend {
     address public owner;
+    address public pendingOwner;
     uint256 private _locked;
 
     // 500 recipients * ~38k energy per transfer ≈ 19M energy, safely under block limit
@@ -53,6 +54,7 @@ contract BulkSend {
     event TRC721Sent(address indexed token, address indexed from, address indexed to, uint256 tokenId);
     event TRC1155Sent(address indexed token, address indexed from, address indexed to, uint256 tokenId, uint256 amount);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
     event StuckTRXWithdrawn(address indexed to, uint256 amount);
     event StuckTRC20Withdrawn(address indexed token, address indexed to, uint256 amount);
     event StuckTRC721Withdrawn(address indexed token, address indexed to, uint256 tokenId);
@@ -77,8 +79,15 @@ contract BulkSend {
 
     function transferOwnership(address newOwner) external onlyOwner {
         if (newOwner == address(0)) revert ZeroAddress();
-        emit OwnershipTransferred(owner, newOwner);
-        owner = newOwner;
+        pendingOwner = newOwner;
+        emit OwnershipTransferStarted(owner, newOwner);
+    }
+
+    function acceptOwnership() external {
+        if (msg.sender != pendingOwner) revert NotOwner();
+        emit OwnershipTransferred(owner, msg.sender);
+        owner = msg.sender;
+        pendingOwner = address(0);
     }
 
     function sendTRX(TokenTransfer[] calldata transfers) external payable nonReentrant {
