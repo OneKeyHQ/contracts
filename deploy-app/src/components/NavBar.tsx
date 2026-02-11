@@ -15,6 +15,16 @@ export function NavBar() {
         Deploy
       </NavLink>
       <NavLink
+        to="/accept-ownership"
+        className={({ isActive }) =>
+          `text-xl font-bold transition-colors ${
+            isActive ? 'text-blue-400' : 'text-gray-400 hover:text-gray-200'
+          }`
+        }
+      >
+        Accept Ownership
+      </NavLink>
+      <NavLink
         to="/rescue"
         className={({ isActive }) =>
           `text-xl font-bold transition-colors ${

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { NavBar } from './components/NavBar';
 import { DeployPage } from './pages/DeployPage';
+import { AcceptOwnershipPage } from './pages/AcceptOwnershipPage';
 import { RescuePage } from './pages/RescuePage';
 
 function App() {
@@ -11,6 +12,7 @@ function App() {
           <NavBar />
           <Routes>
             <Route path="/" element={<DeployPage />} />
+            <Route path="/accept-ownership" element={<AcceptOwnershipPage />} />
             <Route path="/rescue" element={<RescuePage />} />
           </Routes>
         </div>

@@ -58,3 +58,21 @@ export const WITHDRAW_ABI = [
     stateMutability: 'nonpayable',
   },
 ] as const;
+
+// ABI for acceptOwnership (Ownable2Step: 2-step ownership transfer)
+export const ACCEPT_OWNERSHIP_ABI = [
+  {
+    type: 'function',
+    name: 'acceptOwnership',
+    inputs: [],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'pendingOwner',
+    inputs: [],
+    outputs: [{ name: '', type: 'address', internalType: 'address' }],
+    stateMutability: 'view',
+  },
+] as const;
