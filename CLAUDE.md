@@ -1,0 +1,157 @@
+# BulkSend Contract
+
+A free public bulk send contract service supporting native tokens, ERC20, ERC721, and ERC1155.
+
+## Quick Start
+
+```bash
+# Install dependencies
+forge install
+
+# Build
+forge build
+
+# Test
+forge test
+
+# Test with verbosity
+forge test -vvv
+
+# Gas report
+forge test --gas-report
+
+# Format
+forge fmt
+```
+
+## Project Structure
+
+```
+contracts/
+├── contracts/
+│   ├── evm/
+│   │   └── BulkSend.sol      # EVM version
+│   └── tron/
+│       └── BulkSend.sol      # Tron version
+├── test/
+│   ├── unit/                  # Unit tests
+│   ├── gas/                   # Gas benchmarks
+│   └── mocks/                 # Mock contracts
+├── script/
+│   └── Deploy.s.sol          # Foundry deploy script
+├── config/
+│   ├── chains.json           # Chain configurations
+│   ├── testnet.json          # Testnet chain list
+│   └── mainnet.json          # Mainnet chain list
+├── deploy-app/                # Web deployment interface
+│   ├── src/
+│   │   ├── components/       # React components
+│   │   ├── config/           # Chain and contract config
+│   │   └── hooks/            # Custom hooks (useTron)
+│   └── package.json
+└── docs/
+    ├── plans/                 # Design and implementation plans
+    └── security-report.md     # Security audit report
+```
+
+## Contract Functions
+
+### Native Token
+- `sendNative(TokenTransfer[] transfers)` - Send different amounts
+- `sendNativeSameAmount(address[] recipients, uint256 amount)` - Send same amount
+
+### ERC20 Token
+- `sendToken(address token, TokenTransfer[] transfers)` - Send different amounts (direct transferFrom)
+- `sendTokenSameAmount(address token, address[] recipients, uint256 amount)` - Send same amount (direct transferFrom)
+- `sendTokenViaContract(address token, TokenTransfer[] transfers)` - Gas-optimized: collect then distribute
+- `sendTokenSameAmountViaContract(address token, address[] recipients, uint256 amount)` - Gas-optimized: collect then distribute
+
+### ERC721 NFT
+- `sendERC721(address token, ERC721Transfer[] transfers)` - Send NFTs
+
+### ERC1155 Multi-Token
+- `sendERC1155(address token, ERC1155Transfer[] transfers)` - Send different tokens/amounts
+- `sendERC1155SameToken(address token, address[] recipients, uint256 tokenId, uint256 amount)` - Send same token
+
+### Emergency (Owner Only)
+- `withdrawStuckNative(address to)` - Withdraw stuck native tokens
+- `withdrawStuckToken(address token, address to)` - Withdraw stuck ERC20
+- `withdrawStuckERC721(address token, address to, uint256 tokenId)` - Withdraw stuck NFT
+- `withdrawStuckERC1155(address token, address to, uint256 tokenId, uint256 amount)` - Withdraw stuck ERC1155
+
+## Important Notes
+
+### Batch Limit
+All batch functions have a maximum limit of **500 recipients** per transaction (`MAX_BATCH = 500`). Exceeding this limit will revert with `BatchTooLarge()`.
+
+### Atomic Transactions
+All batch operations are **atomic** - if any single transfer fails, the entire transaction reverts. This includes:
+- Any recipient reverting (e.g., contract without receive function)
+- Refund to sender failing
+- Insufficient balance or allowance
+
+### Unsupported Token Types
+The following token types are **NOT supported**:
+- **Fee-on-transfer tokens** - Actual received amount differs from transfer amount
+- **Rebasing tokens** (e.g., stETH, AMPL) - Balance changes automatically
+- **Tokens with transfer hooks** that may revert unexpectedly
+
+### ERC20 Transfer Methods
+Two methods are available for ERC20 batch transfers:
+
+1. **Direct method** (`sendToken`, `sendTokenSameAmount`):
+   - Each transfer calls `transferFrom` directly from sender to recipient
+   - Supports fee-on-transfer tokens (each transfer is independent)
+   - Higher gas cost for large batches
+
+2. **Via Contract method** (`sendTokenViaContract`, `sendTokenSameAmountViaContract`):
+   - First collects total amount to contract, then distributes
+   - Lower gas cost for large batches
+   - Does NOT support fee-on-transfer tokens
+
+## Deployment
+
+### CLI Deployment (Foundry)
+
+```bash
+# Deploy to a network
+forge script script/Deploy.s.sol --rpc-url <RPC_URL> --broadcast --verify
+
+# Example: Deploy to Ethereum mainnet
+forge script script/Deploy.s.sol --rpc-url ethereum --broadcast --verify
+```
+
+### Web Deployment (deploy-app)
+
+```bash
+# Start the deployment web interface
+cd deploy-app
+npm install
+npm run dev
+```
+
+Features:
+- Connect wallet (MetaMask, etc.)
+- Select multiple chains to deploy
+- View balance on each chain
+- Deploy to all selected chains sequentially
+- Export deployment report (JSON)
+- Tron support via TronLink
+
+## Supported Chains
+
+**P0 (Priority)**
+- Ethereum
+- BNB Chain
+- Tron (separate contract)
+
+**P1**
+- Arbitrum One
+- Polygon
+- Base
+
+**P2**
+- Optimism
+- Avalanche
+- Linea
+- zkSync Era

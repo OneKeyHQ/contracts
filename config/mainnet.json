@@ -1,0 +1,7 @@
+{
+  "chains": {
+    "p0": ["ethereum", "bsc"],
+    "p1": ["arbitrum", "polygon", "base"],
+    "p2": ["optimism", "avalanche", "linea", "zksync"]
+  }
+}
